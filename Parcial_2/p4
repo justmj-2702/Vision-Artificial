@@ -1,0 +1,154 @@
+% Práctica K-Means
+
+% Limpiando 
+clc;
+clear;
+close all;
+warning off all;
+
+% Seleccionar imagen
+[archivo, ruta] = uigetfile({'*.jpg;*.jpeg;*.png;*.gif;*.bmp', 'Imágenes (*.jpg, *.png, *.gif, *.bmp)'; ...
+                              '*.*', 'Todos los archivos (*.*)'}, ...
+                             'Selecciona una imagen');
+if isequal(archivo, 0)
+    disp('No se seleccionó ninguna imagen.');
+else
+    rutaCompleta = fullfile(ruta, archivo);
+    h = imread(rutaCompleta);
+
+    dato = imref2d(size(h));
+    figure(1)
+    imshow(h, dato)
+    
+    fprintf('Menú: K-Means\n\n');
+    clases = input('Ingrese el número de clases: ');
+    representantes = input('Ingrese el número de representantes de la imagen: ');
+
+    imshow(h);
+    hold on; 
+
+    colores_representantes_img = zeros(representantes, 3);
+    coordenadas_img = cell(representantes, 1);
+
+    [h_roi, w, ~] = size(h);
+    x = 1;          % Coordenada X inicial
+    y = 1;          % Coordenada Y inicial
+    w = round(w);   % Ancho de la imagen
+    h_img = round(h_roi); % Altura de la imagen
+    
+    % Ponemos y graficamos los puntos en la imagen
+    for j = 1:representantes
+        coordenadas_img{j} = zeros(1,2);
+        random_x = randi([x, x+w-1]);
+        random_y = randi([y, y+h_img-1]);
+        
+        pixel_color = double(h(random_y, random_x, :));
+        colores_representantes_img(j, :) = squeeze(pixel_color)'; %Hace que pixel_color se convierta en un vector fila de tres elementos
+        plot(random_x, random_y, 'o', 'Color', [0.5, 0, 0.5], 'MarkerFaceColor', [0.6, 0, 0.6]);
+        coordenadas_img{j}(1,1) = random_x;
+        coordenadas_img{j}(1,2) = random_y;
+    end
+end
+
+% Inicializar los centroides
+centroides = zeros(clases, 3); % Para las clases
+converge = false;
+iteracion = 0;
+distancias = zeros(representantes, clases);
+centroides_cercanos = zeros(representantes, 1);
+tol = 1e-4; % Tolerancia para la convergencia
+max_iter = 100; % Máximo número de iteraciones
+
+% Elegir aleatoriamente los centroides iniciales
+for i = 1:clases
+    fila_aleatoria = randi([1, representantes]);
+    centroides(i, :) = colores_representantes_img(fila_aleatoria, :);
+    eje_x = coordenadas_img{fila_aleatoria}(1,1);
+    eje_y = coordenadas_img{fila_aleatoria}(1,2);
+    % Graficar la posición del centroide con una "X"
+    %plot(eje_x, eje_y, 'x', 'Color', [0, 1, 0], 'MarkerSize', 12, 'LineWidth', 3);
+end
+
+paleta_colores = [
+    1.0, 0.0, 0.0;     % Rojo
+    0.0, 1.0, 0.0;     % Verde
+    0.0, 0.0, 1.0;     % Azul
+    1.0, 1.0, 0.0;     % Amarillo
+    1.0, 0.0, 1.0;     % Magenta
+    0.0, 1.0, 1.0;     % Cian
+    0.5, 0.5, 0.5;     % Gris
+    0.5, 0.0, 0.0;     % Marrón
+    0.5, 0.5, 0.0;     % Oliva
+    0.0, 0.5, 0.0;     % Verde oscuro
+    0.5, 0.0, 0.5;     % Púrpura
+    0.0, 0.5, 0.5;     % Azul verdoso
+    0.25, 0.25, 0.75;  % Azul pastel
+    0.75, 0.25, 0.25;  % Coral
+    0.25, 0.75, 0.25;  % Verde claro
+    0.75, 0.75, 0.25;  % Amarillo suave
+    0.75, 0.25, 0.75;  % Rosa fuerte
+    0.25, 0.75, 0.75;  % Verde agua
+    0.9, 0.4, 0.1;     % Naranja oscuro
+    0.6, 0.8, 1.0;     % Azul cielo
+];
+
+while ~converge && iteracion < max_iter
+    iteracion = iteracion + 1;
+    fprintf('\nIteración %d:\n', iteracion);
+    
+    % Paso 1: Calcular distancias
+    for i = 1:representantes
+        for j = 1:clases
+            distancias(i, j) = sqrt(sum((colores_representantes_img(i, :) - centroides(j, :)).^2));
+        end
+    end
+    
+    % Paso 2: Asignar cada muestra al centro más cercano
+    [~, centroides_cercanos] = min(distancias, [], 2);
+
+    % Paso 3: Actualizar los centroides
+    nuevos_centroides = zeros(clases, 3);
+    for i = 1:clases
+        puntos_asignados = colores_representantes_img(centroides_cercanos == i, :);
+        if ~isempty(puntos_asignados)
+            nuevos_centroides(i, :) = mean(puntos_asignados, 1);
+        else
+            nuevos_centroides(i, :) = centroides(i, :); % Si no hay puntos asignados, conservar el centroide original
+        end
+    end
+    
+    disp('Nuevos clusters:')
+    disp(nuevos_centroides);
+    
+    % Paso 4: Comprobar la convergencia
+    cambio = norm(nuevos_centroides - centroides);
+    fprintf('Cambio en los centroides: %f\n', cambio);
+    
+    if cambio < tol
+        disp(['La convergencia se alcanza en la iteración ' num2str(iteracion)]);
+        converge = true;
+    end
+    
+    centroides = nuevos_centroides; % Actualizar los centroides
+end
+
+
+% Graficar los puntos en la imagen de acuerdo al cluster asignado
+figure(2);
+imshow(h);
+hold on;
+
+for i = 1:clases
+    % Extraer las coordenadas de los representantes que pertenecen al cluster "i"
+    x_grupo = cellfun(@(x) x(1,1), coordenadas_img(centroides_cercanos == i));  % Coordenadas X del grupo
+    y_grupo = cellfun(@(x) x(1,2), coordenadas_img(centroides_cercanos == i));  % Coordenadas Y del grupo
+    
+    % Graficar los puntos del grupo en el color correspondiente
+    plot(x_grupo, y_grupo, 'o', 'MarkerSize', 7, 'LineWidth', 2, ...
+        'MarkerFaceColor', paleta_colores(i,:), 'MarkerEdgeColor', 'k');
+end
+
+hold off;
+title('Representantes agrupados por K-Means');
+
+disp('Programa terminado');
