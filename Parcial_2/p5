@@ -1,0 +1,186 @@
+clc;
+clear;
+close all;
+warning off all;
+
+% Preguntar al usuario la dimensión del plano
+dimension = input('Ingrese las dimensiones del plano (2 o 3): ');
+
+% Validar dimensión
+if dimension ~= 2 && dimension ~= 3
+    fprintf('Dimensión no válida. Solo se acepta 2 o 3.\n');
+    return;
+end
+
+% Solicitar número de puntos con la condición de 2 a 20
+n = input('¿Cuántos puntos desea generar?: ');
+while n < 2 || n > 20
+    fprintf('El número de puntos debe estar entre 2 y 20.\n');
+    n = input('Ingrese un número válido de puntos: ');
+end
+
+% Solicitar el rango de generación
+fprintf('Ingrese el rango para los valores de los puntos:\n');
+min_val = input('Mínimo valor (min): ');
+max_val = input('Máximo valor (max): ');
+while min_val >= max_val
+    fprintf('El valor mínimo debe ser menor que el máximo.\n');
+    min_val = input('Mínimo valor (min): ');
+    max_val = input('Máximo valor (max): ');
+end
+
+% Generar puntos aleatorios
+x = randi([min_val, max_val], 1, n);
+y = randi([min_val, max_val], 1, n);
+if dimension == 3
+    z = randi([min_val, max_val], 1, n);
+end
+
+% Graficar los puntos sin líneas con `plot`
+figure;
+if dimension == 2
+    plot(x, y, 'o', 'MarkerSize', 8, 'MarkerFaceColor', 'b'); % Graficar puntos únicos en 2D
+    title('Plano 2D');
+    xlabel('Eje X');
+    ylabel('Eje Y');
+    fprintf('Puntos generados en 2D:\n');
+    disp([x; y]); % Mostrar los puntos generados
+    
+    % Agregar etiquetas a los puntos
+    for i = 1:n
+        text(x(i) + 0.2, y(i) + 0.2, num2str(i), 'FontSize', 10, 'Color', 'r');
+    end
+else
+    plot3(x, y, z, 'o', 'MarkerSize', 8, 'MarkerFaceColor', 'b'); % Graficar puntos únicos en 3D
+    title('Espacio 3D');
+    xlabel('Eje X');
+    ylabel('Eje Y');
+    zlabel('Eje Z');
+    fprintf('Puntos generados en 3D:\n');
+    disp([x; y; z]); % Mostrar los puntos generados
+    
+    % Agregar etiquetas a los puntos
+    for i = 1:n
+        text(x(i) + 0.2, y(i) + 0.2, z(i) + 0.2, num2str(i), 'FontSize', 10, 'Color', 'r');
+    end
+end
+
+grid on;
+
+% --- Cálculo inicial de la matriz de distancias ---
+distances = zeros(n, n); % Inicializar matriz de distancias
+for i = 1:n
+    for j = 1:n
+        if dimension == 2
+            % Distancia euclidiana en 2D
+            distances(i, j) = sqrt((x(i) - x(j))^2 + (y(i) - y(j))^2);
+        else
+            % Distancia euclidiana en 3D
+            distances(i, j) = sqrt((x(i) - x(j))^2 + (y(i) - y(j))^2 + (z(i) - z(j))^2);
+        end
+    end
+end
+
+% Guardar la matriz de distancias inicial en un archivo de texto con alineación adecuada
+fileID = fopen('matrices_distancias.txt', 'w'); % Abrir el archivo en modo escritura
+fprintf(fileID, 'Matriz de distancias inicial:\n');
+for row = 1:n
+    fprintf(fileID, '%10.4f', distances(row, :));
+    fprintf(fileID, '\n');
+end
+fprintf(fileID, '\n');
+fclose(fileID);
+
+% --- Inicialización de nodos ---
+nodes = num2cell(1:n); % Cada nodo comienza como un punto único
+currentDistances = distances; % Copiar la matriz inicial de distancias
+
+% Variables para almacenar las fusiones
+fusionDistances = []; % Distancias de fusión
+fusionLabels = {};    % Etiquetas de los nodos fusionados
+
+% --- Algoritmo de Agrupamiento Jerárquico ---
+while numel(nodes) > 1
+    % Paso 1: Encontrar los pares de puntos más cercanos
+    currentDistances = currentDistances + diag(Inf(size(currentDistances, 1), 1)); % Excluir la diagonal
+    [minDist, ind] = min(currentDistances(:));
+    [i, j] = ind2sub(size(currentDistances), ind);
+    if i > j, [i, j] = deal(j, i); end % Asegurar que i < j para consistencia
+    
+    % Guardar la distancia y los nodos fusionados
+    fusionDistances(end + 1) = minDist;
+    fusionLabels{end + 1} = sprintf('%s,%s', mat2str(nodes{i}), mat2str(nodes{j}));
+    
+    % Imprimir información sobre la fusión en consola
+    fprintf('Fusionando nodos: %s y %s (distancia: %.2f)\n', mat2str(nodes{i}), mat2str(nodes{j}), minDist);
+    
+    % Guardar la información de la fusión en el archivo de texto
+    fileID = fopen('matrices_distancias.txt', 'a'); % Abrir el archivo en modo anexar
+    fprintf(fileID, 'Fusionando nodos: %s y %s (distancia: %.2f)\n', mat2str(nodes{i}), mat2str(nodes{j}), minDist);
+    fclose(fileID);
+    
+    % Paso 2: Fusionar los nodos
+    newNode = unique([nodes{i}, nodes{j}]); % Crear el nuevo nodo uniendo ambos
+    nodes([i, j]) = []; % Eliminar los nodos fusionados
+    nodes{end + 1} = newNode; % Añadir el nuevo nodo al final
+    
+    % Paso 3: Recalcular la matriz de distancias
+    numNodes = numel(nodes); % Número actual de nodos
+    newDistances = Inf(numNodes); % Nueva matriz de distancias
+    
+    for k1 = 1:numNodes
+        for k2 = k1+1:numNodes
+            % Distancia mínima entre cualquier par de puntos de los nodos
+            dists = [];
+            for p1 = nodes{k1}
+                for p2 = nodes{k2}
+                    dists = [dists, distances(p1, p2)];
+                end
+            end
+            % Asignar la distancia mínima entre los nodos
+            newDistances(k1, k2) = min(dists);
+            newDistances(k2, k1) = newDistances(k1, k2);
+        end
+    end
+    
+    currentDistances = newDistances; % Actualizar la matriz de distancias para la siguiente iteración
+    
+    % Guardar la nueva matriz de distancias en el archivo de texto
+    fileID = fopen('matrices_distancias.txt', 'a'); % Abrir el archivo en modo anexar
+    fprintf(fileID, 'Nueva matriz de distancias:\n');
+    for row = 1:numNodes
+        fprintf(fileID, '%10.4f', currentDistances(row, :));
+        fprintf(fileID, '\n');
+    end
+    fprintf(fileID, '\n');
+    fclose(fileID);
+end
+
+% Nodo final
+fprintf('Nodo final con todos los puntos: %s\n', mat2str(nodes{1}));
+
+% Guardar el nodo final en el archivo de texto
+fileID = fopen('matrices_distancias.txt', 'a'); % Abrir el archivo en modo anexar
+fprintf(fileID, 'Nodo final con todos los puntos: %s\n', mat2str(nodes{1}));
+fclose(fileID);
+
+% --- Convertir matriz de distancias a un formato adecuado para linkage ---
+% La función linkage requiere una matriz de distancias en formato vectorial, no en forma de matriz cuadrada.
+% Utilizamos squareform para convertir la matriz de distancias a un vector de distancias.
+distanceVector = squareform(distances);
+
+% Calcular el dendrograma usando el método de 'single linkage' (enlace sencillo)
+linkageMatrix = linkage(distanceVector, 'single'); % Puedes cambiar 'single' a 'complete', 'average', etc.
+
+% --- Generar el dendrograma ---
+figure;
+dendrogram(linkageMatrix);
+title('Dendrograma de Puntos Generados');
+xlabel('Índice del Nodo');
+ylabel('Distancia Euclidiana');
+grid on;
+
+
+
+
+
