@@ -1,0 +1,101 @@
+function dataHelp = getRectangle(mRepresentantes, myImage, idx)
+	dim = 3;
+    disp(['Selecciona el rectángulo para la clase ', num2str(idx)]);
+	rect = getrect; % Seleccionar un rectángulo en la imagen
+	rectangle('Position', [rect(1), rect(2), rect(3), rect(4)], 'EdgeColor', 'r', 'LineWidth', 2);
+
+	x1 = rect(1); % Coordenada x superior izquierda
+	y1 = rect(2); % Coordenada y superior izquierda
+	x2 = rect(1) + rect(3); % Coordenada x inferior derecha
+	y2 = rect(2) + rect(4); % Coordenada y inferior derecha
+	
+	% Extraer los píxeles dentro del rectángulo
+	rectangulo = myImage(floor(y1):floor(y2), floor(x1):floor(x2), :);
+	[alto, ancho, ~] = size(rectangulo);
+	num_pixeles = alto * ancho;
+	dataHelp = nan(dim, num_pixeles);
+	% randomIndices = randperm(num_pixeles, mRepresentantes);
+	%dataHelp2 = nan(dim, mRepresentantes);
+	for i = 1:dim
+        dataHelp(i, :) = reshape(rectangulo(:, :, i), 1, []);
+		%dataHelp2(i, :) = dataHelp(i, randomIndices);
+    end
+    dataHelp(dim+1, :) = ones(1,num_pixeles);
+    %dataHelp2(dim+1, :) = ones(1,mRepresentantes);
+end
+function recta = perceptron(clases, nClases, mRepresentantes, r, eps, w)
+    w_last = w;
+    w_new = w_last;
+    
+
+    while abs(w_last - w_new) < eps
+        w_new = w_last;
+
+        for i = 1:nClases
+            for j = 1:mRepresentantes
+                vect = clases{i}(:, j);
+                val = vect' * w_new;
+                if (val >= 0 && i == 1)
+                   w_new = w_new - r * vect;
+                elseif(val <= 0 && i == 2)
+                   w_new = w_new + r * vect;
+                end
+            end
+        end
+        
+    end
+    recta = w_new;
+end
+function main()
+	eps = 0.001;
+
+    w1=input('Ingresa el primer peso')
+    w2=input('Ingresa el segundo peso')
+    w3=input('Ingresa el tercer peso')
+    w4=input('Ingresa el cuarto peso')
+    w = [w1; w2; w3; w4];
+
+    r = input('Ingresa el factor de aprendizaje');
+
+
+    figure(1);
+    filterspec = {'*.jpg;*.png;*.jpeg','All Image Files'};
+   
+    [file, location] = uigetfile(filterspec);
+    myImage = imread([location file]); 
+    imshow(myImage); 
+	
+	nClases = 2;
+	clases = cell(1, nClases);
+	mRepresentantes = input("Ingresa el numero de representantes");
+	
+	for i = 1:nClases
+        clases{i} = getRectangle(mRepresentantes, myImage, i );
+    end
+
+
+    funct = perceptron(clases, nClases, mRepresentantes, r, eps, w)
+    opc = 1;
+	while opc
+        disp("Seleccione el pixel a clasificar");
+        
+        vector = impixel;
+        vect = reshape(vector, 3, []);
+        vect(4) = 1;
+        
+        vect' * funct
+        if(vect' * funct > 0)
+            disp("Pertenece a la clase 2")
+        else
+            disp("Pertenece a la clase 1")
+        end
+
+        opc = input("Desea probar otro punto?");
+
+    end
+	
+	
+	
+end
+
+main();
