@@ -1,0 +1,199 @@
+clear;
+clc;
+close;
+
+function data = createClase(representantes, cx, cy, dx, dy)
+    data = randn(2, representantes);
+    data(1, : ) = data(1, : ) * dx + cx;
+    data(2, : ) = data(2, : ) * dy + cy;
+end
+
+function data = obtenerData()
+    nClases = input("Ingresa el numero de clases\n");
+    mRepresentantes = input("Ingresa el numero de representantes por clase\n");
+
+	data = nan(2, mRepresentantes, nClases);
+    for i = 1:nClases
+       cx = input("Ingresa el centroide en x de la clase " + i + "\n");
+       cy = input("Ingresa el centroide en y de la clase " + i + "\n");
+       dx = input("Ingresa la dispersion en x de la clase " + i + "\n");
+       dy = input("Ingresa la dispersion en y de la clase " + i + "\n") ;
+       data(:, : , i) = createClase(mRepresentantes, cx, cy, dx, dy);
+    end
+end
+
+
+function centroid = obtenerCentroides(data, nClases)
+	centroid = nan(2, nClases);
+	for i = 1:nClases
+		centroid(:, i ) = mean(data(:, :, i), 2); % 2 = columnas, 1 = renglones 
+	end
+end
+
+function plotData(data, nClases)
+	
+	figure;
+	hold on;
+	grid on;
+	markerShapes = ['d', 'o', 's', '^', 'v'];
+	legendLabels = cell(1,nClases);
+	for i = 1:nClases
+		plot(data(1, :, i), data(2, :, i), "LineStyle","none", "Color",rand(1,3), ...
+			"Marker", markerShapes(mod(i, 5) + 1) ); 
+		legendLabels{i} = ["Clase "+ i];
+	end
+	legend(legendLabels);
+end
+
+function plotPoint(x, y)
+	plot(x, y, 'ko', 'MarkerSize', 10, 'MarkerFaceColor', rand(1,3));
+end
+
+function [minDist, idx] = getEuclideanDistance(vect, centroides, nClases)
+	distancias = nan(1, nClases);
+	for i = 1 : nClases
+		distancias(1,i) = norm(vect - centroides(:, i));
+    end
+    
+
+    [minDist, idx] = min(distancias);
+end
+
+
+
+function [minDist, idx] = getMahalanobisDistance(vect, centroides, data, nClases) % centroides es la media = mu
+	distancias = nan(1, nClases);
+	for i = 1 : nClases
+		%sigma = cov(data(:, :, i)');
+		sigma = (data(:, :, i) - centroides(:, i)) * (data(:, :, i) - centroides(:, i))' / size(data(:, :, i), 2); % 2 = columnas,
+		distancias(1,i) = sqrt( (vect - centroides(:, i))' * inv(sigma) * (vect - centroides(:, i)));
+	end
+	[minDist, idx] = min(distancias);
+end 
+
+function [minDist, idx] = getBayesProbabilityDistance(vect, centroides, data, nClases)
+	probabilities = nan(1, nClases);
+	for i = 1 : nClases
+		%sigma = cov(data(:, :, i)');
+		sigma = (data(:, :, i) - centroides(:, i)) * (data(:, :, i) - centroides(:, i))' / size(data(:, :, i), 2); % 2 = columnas,
+		
+		probabilities(1,i) = exp(-0.5 * (vect - centroides(:, i))' * inv(sigma) * (vect - centroides(:, i))) / ( 2 * pi * sqrt(det(sigma)));
+    end
+    probabilities
+	[minDist, idx] = max(probabilities);
+end
+
+function vect = obtenerVector()
+	x = input("Ingresa la coordenada X del punto\n");
+	y = input("Ingresa la coordenada Y del punto\n");
+	vect = [x; y]; % Vectores columna
+end
+
+function main()
+	flag1 = true;
+	while flag1
+		data = obtenerData();
+		nClases = size(data, 3);
+		centroides = obtenerCentroides(data, nClases);
+		plotData(data, nClases);
+		
+		flag2 = true;
+		while flag2
+			vect = obtenerVector();
+			plotPoint(vect(1), vect(2));
+			flag3 = true;
+			while flag3
+				disp("Selecciona el tipo de distancia");
+				disp("1. Euclidiana");
+				disp("2. Mahalanobis");
+				disp("3. Probabilidad Bayesiana");
+				op = input("Ingresa la opcion\n");
+				switch op
+					case 1
+						[minDist, idx] = getEuclideanDistance(vect, centroides, nClases);
+					case 2
+						[minDist, idx] = getMahalanobisDistance(vect, centroides, data, nClases);
+					case 3
+						[minDist, idx] = getBayesProbabilityDistance(vect, centroides, data, nClases);
+					otherwise
+						dispf("Opcion no valida");
+						continue;
+				end
+				
+				if op == 3
+					if minDist == 0
+						disp("El punto no pertenece a ninguna clase");
+					else
+						disp("La clase mas probable es la clase " + idx + ", con una probabilidad de " + minDist + "");
+					end
+				else
+					if minDist > 100
+						disp("El punto no pertenece a ninguna clase");
+					else
+						disp("La clase mas cercana es la clase " + idx + ", con una distancia de " + minDist + "");
+					end
+				end
+				
+
+				disp("Deseas probar otra distancia?");
+				disp("1. Si");
+				disp("2. No");
+				op = input("Ingresa la opcion\n");
+				if op == 2
+					flag3 = false;
+				end
+			end
+			disp("Deseas probar otro punto?");
+			disp("1. Si");
+			disp("2. No");
+			op = input("Ingresa la opcion\n");
+			if op == 2
+				flag2 = false;
+			end
+		end
+		
+		disp("Deseas probar otros datos?");
+		disp("1. Si");
+		disp("2. No");
+		op = input("Ingresa la opcion\n");
+		if op == 2
+			flag1 = false;
+		end
+		
+		
+	end
+	
+	
+	
+	
+end
+  
+main();
+    
+    
+% 
+% 4
+% 1000
+% 0
+% 0
+% 1
+% 1
+% 50
+% 50
+% 2
+% 2
+% 0
+% 50
+% 1
+% 2
+% 50
+% 0
+% 2
+% 1
+% 10
+% 10
+% 1
+% 1
+% 2
+% 1
+% 3
