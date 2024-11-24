@@ -1,0 +1,62 @@
+function clasify_by_hierarchical(data, dim)
+	n = size(data, 1); % Number of data points
+    distance = zeros(n, n)
+    for i = 1:n
+        for j = i+1:n
+            distance(i,j) = sqrt(sum((data(i,:)-data(j,:)).^2));
+			distance(j,i) = distance(i,j);
+        end
+    end
+    
+    distance
+
+    linkage_matrix = linkage(distance, 'single');	
+	
+
+    figure;
+    dendrogram(linkage_matrix);
+    title('Dendrogram from Manual Hierarchical Clustering');
+    xlabel('Data Points');
+    ylabel('Distance');
+
+
+end
+
+function main()
+    dim = input('Introduce la dimension (2 o 3): ');
+    mRepresentantes = input('Introduce el numero de representantes: ');
+    min_data = input('Introduce el valor minimo de los datos: ');
+    max_data = input('Introduce el valor maximo de los datos: ');
+
+    % Generate random data
+    data = rand(mRepresentantes, dim) * (max_data - min_data) + min_data;
+
+    % Plot data points with indices
+    figure;
+    if dim == 2
+        plot(data(:,1), data(:,2), 'b.', 'MarkerSize', 15);
+        hold on;
+        for i = 1:mRepresentantes
+            text(data(i, 1), data(i, 2), num2str(i), 'Color', 'red', 'FontSize', 12);
+        end
+        xlabel('X');
+        ylabel('Y');
+    elseif dim == 3
+        plot3(data(:,1), data(:,2), data(:,3), 'b.', 'MarkerSize', 15);
+        hold on;
+        for i = 1:mRepresentantes
+            text(data(i, 1), data(i, 2), data(i, 3), num2str(i), 'Color', 'red', 'FontSize', 12);
+        end
+        xlabel('X');
+        ylabel('Y');
+        zlabel('Z');
+    else
+        error('Dimensiones no soportadas. Introduce 2 o 3.');
+    end
+
+    
+    clasify_by_hierarchical(data, dim);
+end
+
+
+main();
