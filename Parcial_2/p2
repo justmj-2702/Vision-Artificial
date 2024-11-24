@@ -1,0 +1,131 @@
+clc;
+close all;
+clear all;
+warning off all;
+
+% Lista de colores (Clase 1 en rojo, Clase 2 en verde)
+color_list = ['r', 'g'];
+
+% Definir la matriz general
+general_matrix = zeros(3,2,4);
+
+% Puntos de la clase 1 (color rojo)
+general_matrix(:,1,1) = [0; 0; 0];
+general_matrix(:,1,2) = [1; 0; 0];
+general_matrix(:,1,3) = [1; 0; 1];
+general_matrix(:,1,4) = [1; 1; 0];
+
+% Puntos de la clase 2 (color verde)
+general_matrix(:,2,1) = [0; 0; 1];
+general_matrix(:,2,2) = [0; 1; 1];
+general_matrix(:,2,3) = [1; 1; 1];
+general_matrix(:,2,4) = [0; 1; 0];
+
+% Reorganizar la matriz para crear el conjunto de datos
+X = [reshape(general_matrix(:,1,1:4), 3, 4)'; reshape(general_matrix(:,2,1:4), 3, 4)'];
+y = [-ones(4,1); ones(4,1)];  % Etiquetas (Clase 1 = -1, Clase 2 = 1)
+
+% Añadir una columna de bias (intercepto)
+X = [ones(size(X, 1), 1), X];
+
+% Solicitar al usuario que ingrese los 9 pesos de manera individual
+w = zeros(1, 4);  % Vector para almacenar los 9 pesos
+for i = 1:3
+    prompt = sprintf('Ingrese el peso w%d: ', i);
+    w(i) = input(prompt);
+end
+
+% Ingresar el peso de bias (w0)
+w(4) = input('Ingrese el peso w0 (bias): ');
+
+% Solicitar el coeficiente de aprendizaje, asegurando que sea diferente de 0
+r = 0;
+while r == 0
+    r = input('Ingrese el coeficiente de aprendizaje (r diferente de 0): ');
+    if r == 0
+        disp('El coeficiente de aprendizaje no puede ser 0. Intente de nuevo.');
+    end
+end
+
+% Parámetros del perceptrón
+max_iter = 1000;
+
+% Entrenamiento del perceptrón
+disp('Iniciando el entrenamiento del perceptrón...');
+for iter = 1:max_iter
+    fprintf('\nIteración %d:\n', iter);
+    cambios = 0;  % Para rastrear si hubo cambios en la iteración
+
+    for i = 1:length(y)
+        % Calcular el valor de activación
+        activacion = X(i, :) * w(1:4)';
+        fprintf(' Punto: [%d, %d, %d, %d], Activación: %.2f, Etiqueta esperada: %d\n', X(i, 2), X(i, 3), X(i, 4), X(i, 1), activacion, y(i));
+
+
+        % Verificar si el punto está mal clasificado
+        if y(i) * activacion <= 0
+            fprintf('  --> Punto mal clasificado. Actualizando pesos...\n');
+            % Actualizar pesos
+            w(1:4) = w(1:4) + r * y(i) * X(i, :);
+            fprintf('  Nuevos pesos: [w1=%.2f, w2=%.2f, w3=%.2f, w0=%.2f]\n', w(2), w(3), w(4), w(1));
+            cambios = cambios + 1;  % Hubo un cambio
+        else
+            fprintf('  --> Punto correctamente clasificado.\n');
+        end
+    end
+
+    % Si no hay cambios, el perceptrón ha convergido
+    if cambios == 0
+        fprintf('El perceptrón ha convergido después de %d iteraciones.\n', iter);
+        break;
+    end
+end
+
+% Mostrar la ecuación del plano de separación
+fprintf('\nEcuación del plano de separación:\n');
+fprintf('z = -(%.2f*x3 + %.2f*x2 + %.2f)/%.2f\n', w(3), w(2), w(1), w(4));
+
+
+
+% Graficar el cubo y los puntos de cada clase
+figure;
+hold on;
+
+% Graficar las aristas del cubo unitario
+vertices = [0 0 0; 1 0 0; 1 1 0; 0 1 0; 0 0 1; 1 0 1; 1 1 1; 0 1 1];
+caras = [1 2 3 4; 5 6 7 8; 1 5 8 4; 2 6 7 3; 1 2 6 5; 4 3 7 8];
+patch('Vertices', vertices, 'Faces', caras, ...
+      'FaceColor', 'none', 'EdgeColor', 'black', 'LineWidth', 1.5);
+
+% Graficar los puntos de las clases
+for i = 1:2
+    % Extraer los datos para graficar
+    x_data_graph = squeeze(general_matrix(1, i, :));
+    y_data_graph = squeeze(general_matrix(2, i, :));
+    z_data_graph = squeeze(general_matrix(3, i, :));
+    
+    % Seleccionar el color para cada clase
+    color = color_list(i);
+    
+    % Graficar los puntos de la clase
+    plot3(x_data_graph, y_data_graph, z_data_graph, 'o', ...
+          'MarkerFaceColor', color, 'MarkerEdgeColor', color, 'MarkerSize', 6);
+end
+
+% Graficar el plano de separación encontrado por el perceptrón
+[x_plane, y_plane] = meshgrid(0:0.1:1, 0:0.1:1);
+z_plane = -(w(2)*x_plane + w(3)*y_plane + w(1)) / w(4);  % Ecuación del plano
+
+% Visualizar el plano de separación
+surf(x_plane, y_plane, z_plane, 'FaceAlpha', 0.5, 'EdgeColor', 'none', 'FaceColor', 'yellow');
+
+% Añadir etiquetas y configuraciones
+grid on;
+xlabel('X');
+ylabel('Y');
+zlabel('Z');
+title('Clasificación de Puntos con Perceptrón en el Cubo Unitario');
+legend('Cubo unitario', 'Clase 1 (Rojo)', 'Clase 2 (Verde)', 'Plano de separación');
+axis equal;
+view(3);
+hold off;
