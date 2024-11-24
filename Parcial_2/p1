@@ -1,0 +1,255 @@
+% Función para obtener los centroides de cada clase (promedio RGB)
+function centroides = obtenerCentroides(clases, nClases)
+    centroides = nan(3, nClases);
+    for i = 1:nClases
+        centroides(:, i) = mean(clases{i}, 2);
+    end
+end
+
+% Funciones de distancia
+function [minDist, idx] = getEuclideanDistance(vect, centroides, data, nClases)
+    distancias = nan(1, nClases);
+    for i = 1 : nClases
+        distancias(1,i) = norm(vect - centroides(:, i));
+    end
+    [minDist, idx] = min(distancias);
+    distancias;
+end
+
+function [minDist, idx] = getMahalanobisDistance(vect, centroides, data, nClases)
+    epsilon = 1e-6;
+    distancias = nan(1, nClases);
+    for i = 1:nClases
+        sigma = (data{i} - centroides(:, i)) * (data{i} - centroides(:, i))' / size(data{i}, 2); % 2 = columnas,
+        sigma = sigma + eye(size(sigma)) * epsilon;
+        distancias(1, i) = sqrt((vect - centroides(:, i))' * inv(sigma) * (vect - centroides(:, i)));
+    end
+    [minDist, idx] = min(distancias);
+end
+
+function [minDist, idx] = getBayesProbabilityDistance(vect, centroides, data, nClases)
+    epsilon = 1e-6;
+	probabilities = nan(1, nClases);
+    for i = 1:nClases
+        sigma = (data{i} - centroides(:, i)) * (data{i} - centroides(:, i))' / size(data{i}, 2); % 2 = columnas,
+        sigma = sigma + eye(size(sigma)) * epsilon;
+        probabilities(1,i) = exp(-0.5 * (vect - centroides(:, i))' * inv(sigma) * (vect - centroides(:, i))) / ((2 * pi)^(1.5) * sqrt(det(sigma)));
+    end
+    probabilities = probabilities / sum(probabilities) * 100;
+    [minDist, idx] = max(probabilities);
+end
+
+function dataHelp2 = getRectangle(mRepresentantes, myImage, idx)
+	disp(['Selecciona el rectángulo para la clase ', num2str(idx)]);
+	rect = getrect; % Seleccionar un rectángulo en la imagen
+	rectangle('Position', [rect(1), rect(2), rect(3), rect(4)], 'EdgeColor', 'r', 'LineWidth', 2);
+
+	x1 = rect(1); % Coordenada x superior izquierda
+	y1 = rect(2); % Coordenada y superior izquierda
+	x2 = rect(1) + rect(3); % Coordenada x inferior derecha
+	y2 = rect(2) + rect(4); % Coordenada y inferior derecha
+	
+	% Extraer los píxeles dentro del rectángulo
+	rectangulo = myImage(floor(y1):floor(y2), floor(x1):floor(x2), :);
+	[alto, ancho, ~] = size(rectangulo);
+	num_pixeles = alto * ancho;
+	dataHelp = nan(3, num_pixeles);
+	randomIndices = randperm(num_pixeles, mRepresentantes);
+	dataHelp2 = nan(3, mRepresentantes);
+	for i = 1:3
+        dataHelp(i, :) = reshape(rectangulo(:, :, i), 1, []);
+		dataHelp2(i, :) = dataHelp(i, randomIndices);
+	end
+end
+
+function main()
+	figure(1);
+    filterspec = {'*.jpg;*.png;*.jpeg','All Image Files'};
+   
+    [file, location] = uigetfile(filterspec);
+    myImage = imread([location file]); 
+    imshow(myImage); 
+	
+	nClases = input("Ingresa el numero de clases: ");
+	clases = cell(1, nClases);
+	mRepresentantes = input("Ingresa el numero de representantes: ");
+	
+	for i = 1:nClases
+        clases{i} = getRectangle(mRepresentantes, myImage, i );
+	end
+	
+	centroides = obtenerCentroides(clases, nClases);
+	
+	flag1 = 1;
+	% Implementar resustitución, validación cruzada, dejar uno fuera con una matriz de confusión
+	distanceArrayFunction = {@getEuclideanDistance, @getMahalanobisDistance, @getBayesProbabilityDistance};
+	validationMethod = {@resustitution, @crossValidation20, @leaveOneOut};
+	while flag1
+		display("Selecciona una opción");
+		display("1. Distancia Euclidiana");
+		display("2. Distancia Mahalanobis");
+		display("3. Distancia Bayesiana");
+		display("4. Todas las distancias");
+		display("5. Salir");
+		opcion1 = input("Ingresa una opción: ");
+        
+		methodsNames = {'Resustitución', 'Cross validation', 'Leave one out'};
+		distanceNames = {'Euclidiana', 'Mahalanobis', 'Bayesiana'};
+		
+		if(opcion1 == 4)
+			accuracy = cell(1,3);
+			for i = 1:3 % 3 distancias
+				accuracy{i} = nan(3, nClases);
+				for j = 1:3 % 3 métodos de validación
+                    disp(distanceNames{i} + " con " + methodsNames{j});
+					confusionMatrix = validationMethod{j}(centroides, clases, nClases, mRepresentantes, distanceArrayFunction{i});
+                    confusionMatrix = (confusionMatrix / mRepresentantes) * 100;
+					accuracy{i}(j, :) = diag(confusionMatrix);
+                    confusionMatrix
+                    disp("El promedio es " + mean(diag(confusionMatrix)));
+                end
+                [maxx, idxx ] = max(accuracy{i});
+			end
+			accuracy;
+			
+			for i = 1:3
+				figure (10 + i );
+				xlabel('Clases');
+				ylabel('Precisión (%)');
+				
+				xticks(1:nClases);
+				ylim([0 100]);
+				
+				title(['Precisión de ', distanceNames{i}]);
+				hold on;
+				lines = {'-o', '-x', '-s'};
+				for j = 1:3
+					plot(accuracy{i}(j, :), lines{j},'LineWidth', 2);
+				end
+				legend(methodsNames);
+				hold off;
+            end
+            
+            averagee = nan(1, 3);
+            for i= 1:3 
+                averagee(1, i) = mean(accuracy{i}(1,:));
+            end
+            nombresRandom = {"euclides", "mahalanobis", "proba"};
+            [mejor, indice ] = max(averagee);
+            for i = 1:3
+                disp(distanceNames{i} + " tiene una presision de " + averagee(1,i));
+            
+           
+            end
+            disp("La mejor distancia es " + nombresRandom{indice} + " con presision " + mejor)
+            
+
+			continue;
+		end
+		
+		display("Selecciona una opción");
+		display("1. Resustitución");
+		display("2. Validación Cruzada");
+		display("3. Dejar uno fuera");
+		display("4. Todas las validaciones");
+		display("5. Salir");
+		opcion2 = input("Ingresa una opción: ");
+		
+		if opcion2 == 4
+        % Evaluar todas las validaciones para la distancia seleccionada
+        accuracy = nan(3, nClases); % 3 validaciones
+        figure;
+        hold on;
+        lines = {'-o', '-x', '-s'}; 
+        for j = 1:3 % Evaluar cada método de validación
+            disp(distanceNames{opcion1} + " con " + methodsNames{j});
+            confusionMatrix = validationMethod{j}(centroides, clases, nClases, mRepresentantes, distanceArrayFunction{opcion1});
+            confusionMatrix = (confusionMatrix / mRepresentantes) * 100;
+            accuracy(j, :) = diag(confusionMatrix); % Extraer la precisión por clase
+            plot(1:nClases, accuracy(j, :), lines{j}, 'LineWidth', 2, 'DisplayName', methodsNames{j});
+            confusionMatrix
+            disp("El promedio es " + mean(diag(confusionMatrix)));
+        end
+        xlabel('Clases');
+        ylabel('Precisión (%)');
+        xticks(1:nClases);
+        ylim([0 100]);
+        title(['Precisión de ', distanceNames{opcion1}, ' con todas las validaciones']);
+        legend('show');
+        grid on;
+        hold off;
+    else
+        % Evaluar una sola validación y distancia seleccionada
+        confusionMatrix = validationMethod{opcion2}(centroides, clases, nClases, mRepresentantes, distanceArrayFunction{opcion1});
+        confusionMatrix = (confusionMatrix / mRepresentantes) * 100;
+        accuracy = diag(confusionMatrix); % Extraer la precisión por clase
+        confusionMatrix
+        disp("El promedio es " + mean(diag(confusionMatrix)));
+        figure;
+        plot(1:nClases, accuracy, '-o', 'LineWidth', 2); % Formato de línea
+        xlabel('Clases');
+        ylabel('Precisión (%)');
+        xticks(1:nClases);
+        ylim([0 100]);
+        title(['Precisión de ', distanceNames{opcion1}, ' con ', methodsNames{opcion2}]);
+        legend(methodsNames{opcion2});
+        grid on;
+        end
+    end
+end
+
+function confusionMatrix = resustitution(centroides, data, nClases, mRepresentantes, myFunction)
+	confusionMatrix = zeros(nClases, nClases);
+	for i = 1:nClases
+		for j = 1:mRepresentantes
+			[minDist, idx] = myFunction(data{i}(:, j), centroides, data, nClases);
+			confusionMatrix(i, idx) = confusionMatrix(i, idx) + 1;
+		end
+	end
+end
+
+function confusionMatrix = crossValidation20(centroides, data, nClases, mRepresentantes, myFunction)
+	%copilot, you are doing it wrong, terrible wrong
+	confusionMatrixArray = cell(1, 20);
+	for i = 1:20
+		confusionMatrixArray{i} = crossValidation(centroides, data, nClases, mRepresentantes, myFunction);
+	end
+	confusionMatrix = zeros(nClases, nClases);
+	for i = 1:20
+		confusionMatrix = confusionMatrix + confusionMatrixArray{i};
+	end
+	confusionMatrix = confusionMatrix / 20;
+end
+
+function confusionMatrix = crossValidation(centroides, data, nClases, mRepresentantes, myFunction)
+	confusionMatrix = zeros(nClases, nClases);
+	randomColIndices = randperm(mRepresentantes, ceil(mRepresentantes / 2));
+	
+	for i = 1:nClases
+		for j = 1:ceil(mRepresentantes / 2)
+			[minDist, idx] = myFunction( data{i}(:, randomColIndices(j)), centroides, data, nClases);
+			confusionMatrix(i, idx) = confusionMatrix(i, idx) + 1;
+		end
+	end
+	
+end
+
+function confusionMatrix = leaveOneOut(centroides, data, nClases, mRepresentantes, myFunction)
+	% i need to evalueate every single element of my data except a random one, for each class
+	
+	confusionMatrix = zeros(nClases, nClases);
+	idxRandom = randperm(mRepresentantes, 1);
+	for i = 1:nClases
+		for j = 1:mRepresentantes
+			if(j == idxRandom)
+				continue;
+			end
+			[minDist, idx] = myFunction(data{i}(:, j), centroides, data, nClases);
+			confusionMatrix(i, idx) = confusionMatrix(i, idx) + 1;
+			
+		end
+	end
+end
+
+
+main();
