@@ -1,0 +1,183 @@
+clc;
+clear all;
+close all;
+
+flag_datos = true;
+
+while flag_datos
+    % Cargar la imagen
+    figure(1);
+    filterspec = {'*.jpg;*.tif;*.png;*.gif;*.jpeg','All Image Files'};
+
+    %uigetfile({'*.jpg;*.jpeg;*.png;*.gif;*.bmp', 'Imágenes (*.jpg, *.png, *.gif, *.bmp)'; ...
+                             %'*.*', 'Todos los archivos (*.*)'}, ...
+                             %'Selecciona una imagen');
+   
+    [file,location] = uigetfile(filterspec);
+    a = imread([location file]); % Cargar la imagen
+    imshow(a); % Mostrar la imagen
+
+    % Definir un número de clases
+    numClases = input("Ingresa el número de clases: ");
+
+    % Inicializar un cell array para almacenar los píxeles de cada clase
+    clases = cell(1, numClases);
+    % disp("paso 1\n");
+    % Iterar sobre cada clase y obtener las muestras de entrenamiento
+    for i = 1:numClases
+        disp(['Selecciona el rectángulo para la clase ', num2str(i)]);
+
+        % Obtener las coordenadas del rectángulo
+        rect = getrect; % Permite seleccionar un rectángulo en la imagen
+        rectangle('Position', [rect(1), rect(2), rect(3), rect(4)], 'EdgeColor', 'r', 'LineWidth', 2);
+
+        x1 = rect(1); % Coordenada x superior izquierda
+        y1 = rect(2); % Coordenada y superior izquierda
+        x2 = rect(1) + rect(3); % Coordenada x inferior derecha
+        y2 = rect(2) + rect(4); % Coordenada y inferior derecha
+        
+        % Extraer los píxeles dentro del rectángulo
+        rectangulo = a(floor(y1):floor(y2), floor(x1):floor(x2), :); % Extraer el área definida por el rectángulo
+
+        % Obtener los píxeles RGB de la clase seleccionada
+        [alto, ancho, ~] = size(rectangulo);
+        num_pixeles = alto * ancho;
+        dataHelp = nan(3, num_pixeles);
+        dataHelp(1, :) = reshape(rectangulo(:, :, 1), 1, []);
+        dataHelp(2, :) = reshape(rectangulo(:, :, 2), 1, []);
+        dataHelp(3, :) = reshape(rectangulo(:, :, 3), 1, []);
+        % dataHelp = dataHelp / 255;
+
+        clases{i} = dataHelp; % Almacenar los píxeles RGB en la clase correspondiente
+        % disp("datos guardados 1\n");
+    end
+
+    % Obtener centroides de cada clase (promedio de los valores RGB)
+    centroides = obtenerCentroides(clases, numClases);
+    % disp("se obtubo cenroides 1\n");
+    % Clasificar los píxeles de la imagen completa
+    flag1 = true;
+
+    while flag1
+        % Obtener el píxel que se quiere clasificar
+        vector = impixel;
+        vector_reshape = reshape(vector, 3, []); % Convertir el píxel a un vector RGB   
+        % Seleccionar el tipo de distancia y clasificar
+        % disp("se obtuvo el pixel 1\n");
+        flag2 = true;
+        while flag2
+            disp("Selecciona el tipo de distancia");
+            disp("1. Euclidiana");
+            disp("2. Mahalanobis");
+            disp("3. Probabilidad Bayesiana");
+            % disp("4. Todas");
+            op = input("Ingresa la opción: ");
+            switch op
+                case 1
+                    [minDist, idx] = getEuclideanDistance(vector_reshape, centroides, numClases);
+                case 2
+                    [minDist, idx] = getMahalanobisDistance(vector_reshape, centroides, clases, numClases);
+                case 3
+                    [minDist, idx] = getBayesProbabilityDistance(vector_reshape, centroides, clases, numClases);
+				case 4
+					[minDist, idx] = getEuclideanDistance(vector_reshape, centroides, numClases);
+					disp("Distancia Euclidiana: " + minDist + ", Clase: " + idx);
+					[minDist, idx] = getMahalanobisDistance(vector_reshape, centroides, clases, numClases);
+					disp("Distancia Mahalanobis: " + minDist + ", Clase: " + idx);
+					[minDist, idx] = getBayesProbabilityDistance(vector_reshape, centroides, clases, numClases);
+					disp("Probabilidad Bayesiana: " + minDist + ", Clase: " + idx);
+					flag2 = false; % Salir del bucle de distancia
+				otherwise
+                    disp("Opción no válida");
+                    continue;
+            end
+
+            if op == 3
+                if minDist == 0
+                    disp("El punto no pertenece a ninguna clase");
+                else
+                    disp("La clase más probable es la clase " + idx + ", con una probabilidad de " + minDist);
+                end
+            else
+                if minDist > 300
+                    disp("El punto no pertenece a ninguna clase");
+                else
+                    disp("La clase más cercana es la clase " + idx + ", con una distancia de " + minDist);
+                end
+            end
+
+            disp("¿Deseas probar otra distancia?");
+            disp("1. Sí");
+            disp("2. No");
+            op = input("Ingresa la opción: ");
+            if op == 2
+                flag2 = false; % Salir del bucle de distancia
+            end
+        end
+
+        % Preguntar si se desea clasificar otro vector (píxel)
+        disp("¿Deseas clasificar otro vector?");
+        disp("1. Sí");
+        disp("2. No");
+        op = input("Ingresa la opción: ");
+        if op == 2
+            flag1 = false; % Salir del bucle de vector
+        end
+    end
+
+    % Preguntar si se desea ingresar nuevos datos o terminar
+    disp("¿Deseas agregar nuevos datos (clases) o terminar?");
+    disp("1. Agregar nuevos datos");
+    disp("2. Terminar");
+    op = input("Ingresa la opción: ");
+    if op == 2
+        flag_datos = false; % Salir del bucle de agregar datos
+    end
+end
+
+% Función para obtener los centroides de cada clase (promedio RGB)
+function centroides = obtenerCentroides(clases, nClases)
+    centroides = nan(3, nClases);
+    for i = 1:nClases
+        centroides(:, i) = mean(clases{i}, 2);
+    end
+end
+
+% Funciones de distancia
+function [minDist, idx] = getEuclideanDistance(vect, centroides, nClases)
+    distancias = nan(1, nClases);
+    for i = 1 : nClases
+        distancias(1,i) = norm(vect - centroides(:, i));
+    end
+    [minDist, idx] = min(distancias);
+    distancias
+end
+
+function [minDist, idx] = getMahalanobisDistance(vect, centroides, data, nClases)
+    distancias = nan(1, nClases);
+    for i = 1 : nClases
+		sigma = (data{i} - centroides(:, i)) * (data{i} - centroides(:, i))' / size(data{i}, 2); % 2 = columnas,
+        distancias(1,i) = sqrt((vect - centroides(:, i))' * inv(sigma) * (vect - centroides(:, i)));
+    end
+    [minDist, idx] = min(distancias);
+    distancias
+end
+
+function [minDist, idx] = getBayesProbabilityDistance(vect, centroides, data, nClases)
+    probabilities = nan(1, nClases);
+    disp("jala 1")
+    for i = 1 : nClases
+		sigma = (data{i} - centroides(:, i)) * (data{i} - centroides(:, i))' / size(data{i}, 2) ;% 2 = columnas,
+        
+        probabilities(1,i) = exp(-0.5 * (vect - centroides(:, i))' * inv(sigma) * (vect - centroides(:, i))) / ((2 * pi)^(1.5) * sqrt(det(sigma)));
+
+    end
+    suma = sum(probabilities);
+    if suma == 0
+        nada = 1;
+    else
+        probabilities = probabilities / (sum(probabilities)) * 100;
+    end
+    probabilities
+    [minDist, idx] = max(probabilities);
+end
